@@ -1,0 +1,7 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# multer 2.2.0 (transitivo de @nestjs/platform-express) tiene avisos altos en pnpm audit; se fuerza la versión parcheada
+overrides:
+  multer: '>=2.3.0'
