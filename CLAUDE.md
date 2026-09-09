@@ -73,8 +73,8 @@ HU-23/24 (esas historias consolidan cobertura y casos de borde transversales).
 | Gestor de paquetes | `pnpm` 10 con workspaces (`apps/*`, `packages/*`), activado con `corepack enable pnpm`. Versión fijada en `packageManager` del `package.json` raíz (Corepack 0.34 no puede ejecutar pnpm 12). `engine-strict=true` en `.npmrc`. Paquetes: `@cec/backend`, `@cec/frontend`, `@cec/shared` |
 | Backend | NestJS 11 generado con `@nestjs/cli@11` (el CLI más reciente genera Nest 12 con ESM, vitest y oxlint, que no es el stack acordado). TypeScript `strict` + `noUnusedLocals`, puerto `3000`, **sin prefijo global** de ruta |
 | Frontend | Angular 21 (zoneless por defecto): standalone components, signals, SCSS, formularios reactivos, `inject()`, `ChangeDetectionStrategy.OnPush`. Puerto `4200`. Se fijó en 21 porque Angular 22 exige Node ≥ 22.22.3 y el entorno se mantiene en 22.22.0 por decisión del desarrollador. Archivos con sufijo `.component.ts` (schematic `type: component` en `angular.json`) |
-| Contratos | `packages/shared` — TypeScript puro, sin dependencias de framework, consumido por ambas apps vía workspace |
-| Pruebas | Jest 30 en ambas apps (`jest-preset-angular` con `setupZonelessTestEnv` en frontend). `jest.config.ts` por app con `coverageThreshold` global 80% en statements, branches, functions y lines y `coverageProvider: 'v8'` (istanbul reporta ramas falsas en métodos decorados). Excluidos de cobertura: `main.ts`, `*.interface.ts`, `environments/`, `testing/`. Backend además tiene `test:e2e` (supertest) |
+| Contratos | `packages/shared` (`@cec/shared`) — TypeScript puro, sin dependencias de framework. Se compila con `tsc` a `dist/` (CommonJS + `.d.ts`, `exports` con `types`/`default`) porque enums y constantes son código en tiempo de ejecución; ambas apps lo declaran como `workspace:*`. `prepare` lo compila en `pnpm install`; `pnpm dev` lo recompila antes de levantar las apps. Angular lo lista en `allowedCommonJsDependencies` |
+| Pruebas | Jest 30 en ambas apps y en `shared` (`jest-preset-angular` con `setupZonelessTestEnv` en frontend). `jest.config.ts` por paquete con `coverageThreshold` global 80% en statements, branches, functions y lines y `coverageProvider: 'v8'` (istanbul reporta ramas falsas en métodos decorados). Excluidos de cobertura: `main.ts`, `*.interface.ts`, `environments/`, `testing/`. Backend además tiene `test:e2e` (supertest) |
 | Lint y formato | `eslint.config.mjs` y `.prettierrc` **en la raíz**, extendidos por cada app (`angular-eslint` en frontend). Prettier impone 2 espacios, comillas simples, punto y coma, `printWidth` 120, `arrowParens: avoid`, LF |
 | Validación HTTP | `class-validator` + `class-transformer`; `ValidationPipe` global con `whitelist`, `forbidNonWhitelisted`, `transform` |
 | Fechas | `dayjs`. Transporte y persistencia como unix timestamp UTC sin milisegundos; el frontend convierte a local |
@@ -91,10 +91,11 @@ No instalar librerías adicionales a las listadas sin consultar. Versionar `.git
 `docs/historias-usuario.pdf` está en `.gitignore` (documento de trabajo del desarrollador). `pnpm-workspace.yaml` lleva
 un `override` de `multer >= 2.3.0` (transitivo de `@nestjs/platform-express`) para dejar `pnpm audit` sin avisos.
 
-Comandos desde la raíz (cerrados en HU-01): `pnpm install`, `pnpm dev` (ambas apps en paralelo), `pnpm dev:backend`,
-`pnpm dev:frontend`, `pnpm test`, `pnpm test:cov` (ambas apps con cobertura), `pnpm lint`, `pnpm build`. Además
-`pnpm --filter @cec/backend test:e2e`. Los scripts raíz delegan con `pnpm --recursive`; cada app expone `dev`, `build`,
-`lint`, `test` y `test:cov` con esos nombres exactos.
+Comandos desde la raíz (cerrados en HU-01, ajustados en HU-02): `pnpm install`, `pnpm dev` (compila `shared` y levanta
+ambas apps en paralelo), `pnpm dev:backend`, `pnpm dev:frontend`, `pnpm test`, `pnpm test:cov` (los tres paquetes con
+cobertura), `pnpm lint`, `pnpm build` (orden topológico: `shared` primero). Además `pnpm --filter @cec/backend test:e2e`.
+Los scripts raíz delegan con `pnpm --recursive`; cada app expone `dev`, `build`, `lint`, `test` y `test:cov` con esos
+nombres exactos; `shared` expone los mismos salvo `dev`.
 
 ## 4. Estructura de carpetas
 
@@ -103,7 +104,7 @@ core-ecommerce-checkout/
 ├── apps/
 │   ├── backend/src/
 │   │   ├── domain/
-│   │   │   ├── entities/          # IProduct, IOrder, ICoupon (re-export o extensión de shared) y lógica de entidad
+│   │   │   ├── entities/          # ICoupon (solo backend) y extensiones de shared con lógica de entidad
 │   │   │   ├── ports/             # IProductRepository, IOrderRepository, ICouponRepository + tokens de inyección
 │   │   │   ├── discounts/         # DiscountEngine, DiscountStrategyFactory, IDiscountStrategy, strategies/
 │   │   │   ├── services/          # StockValidator
@@ -128,10 +129,11 @@ core-ecommerce-checkout/
 │       ├── environments/          # environment.ts (apiBaseUrl) + environment.interface.ts (IEnvironment)
 │       └── testing/mocks/         # mock[Entidad] + barrel index.ts
 ├── packages/shared/src/
-│   ├── interfaces/                # *.interface.ts
-│   ├── enums/                     # *.enumerable.enum.ts
-│   ├── constants/                 # discount.constants.ts, alert.constants.ts
-│   └── utils/                     # money.util.ts (roundMoney)
+│   ├── index.ts                   # Barrel: única entrada pública de @cec/shared
+│   ├── interfaces/                # *.interface.ts (HU-02)
+│   ├── enums/                     # *.enumerable.enum.ts (HU-02)
+│   ├── constants/                 # discount.constants.ts (HU-02), alert.constants.ts (HU-19)
+│   └── utils/                     # money.util.ts (roundMoney, HU-05)
 ├── docs/                          # arquitectura.md, ia.md, historias-usuario.pdf (documento del desarrollador)
 ├── CLAUDE.md
 └── README.md
@@ -186,14 +188,22 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
 
 - `IProduct { id, name, unitPrice, category: ProductCategoryEnum, stock }`
 - `ICartItem { productId, quantity }`
-- `ICheckoutRequest { items: ICartItem[], couponCode?: string }` — el cliente **nunca** envía precios ni totales.
+- `ICheckoutRequest { items: ICartItem[], couponCode?: string }` — el cliente **nunca** envía precios ni totales. Es el
+  **único** contrato de solicitud: `POST /checkout/quote` y `POST /checkout` reciben el mismo payload; no existe `IQuoteRequest`.
 - `IDiscountBreakdown { originalSubtotal, categoryDiscount, volumeDiscount, couponDiscount, capAdjustment, totalDiscount,
   effectiveDiscountRate, finalTotal, isMaxDiscountReached, isCouponValid }` — montos con 2 decimales; tasas como fracción.
 - `IOrder { id, createdAt (unix UTC), items: IOrderItem[], couponCode: string | null, breakdown: IDiscountBreakdown, finalTotal }`
 - `IOrderItem { productId, name, unitPrice, quantity }` — precio al momento de la compra.
-- `ICoupon { code, discountRate, isActive }` — solo en backend; el cliente nunca recibe cupones.
-- `IApiError { error: { code: string, message: string } }`
-- `ProductCategoryEnum { TECHNOLOGY, HOME, CLOTHING, BOOKS, ... }`, `DiscountTypeEnum { CATEGORY, VOLUME, COUPON, CAP }`
+- `ICoupon { code, discountRate, isActive }` — **no vive en `shared`**: se define en `apps/backend/src/domain/entities`
+  cuando llegue HU-03/HU-08, porque el cliente nunca recibe cupones y un contrato compartido invitaría a importarlo.
+- `IStockConflict { productId, requested, available }` — detalle de cada conflicto del `409` de checkout.
+- `IApiError { error: IApiErrorDetail }` con `IApiErrorDetail { code: string, message: string, details?: IStockConflict[] }`;
+  `details` solo viaja en el `409` de `POST /checkout`.
+- `ProductCategoryEnum { TECHNOLOGY, HOME, CLOTHING, BOOKS }` (cerrado en HU-02, string enum),
+  `DiscountTypeEnum { CATEGORY, VOLUME, COUPON, CAP }` (string enum, en orden de precedencia).
+- Constantes de descuento (HU-02): `CATEGORY_DISCOUNT_RATE`, `VOLUME_DISCOUNT_RATE`, `VOLUME_THRESHOLD`,
+  `MAX_DISCOUNT_RATE`, `DISCOUNT_TARGET_CATEGORY`, `FLOAT_TOLERANCE`. Los DTOs con `class-validator` **no** van en
+  `shared` (romperían "TypeScript puro"): viven en `presentation/dto` e `implements` la interfaz compartida.
 - `MAX_DISCOUNT_ALERT_MESSAGE = '¡Enhorabuena! Has alcanzado el límite máximo de ahorro permitido (35%)'` — constante única,
   usada por el componente y sus pruebas.
 
@@ -216,8 +226,8 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
   con `400` sin persistir nada. Normalización: `trim` + mayúsculas, longitud máxima 32, patrón alfanumérico.
 - **Orden de ejecución en checkout**: resolver productos → resolver cupón → validar stock → calcular → decrementar stock →
   persistir. Toda validación antes de cualquier mutación; si algo falla, ningún stock queda decrementado.
-- **Stock insuficiente** → `409` listando **todos** los conflictos `{ productId, requested, available }`. Ítems repetidos se
-  consolidan por `productId` antes de validar. El decremento nunca deja stock negativo.
+- **Stock insuficiente** → `409` listando **todos** los conflictos como `IStockConflict[]` en `error.details`. Ítems
+  repetidos se consolidan por `productId` antes de validar. El decremento nunca deja stock negativo.
 - **Errores de dominio**: `BaseError extends Error { readonly code: ErrorCodeEnum }` en `domain/errors`. El dominio **no**
   conoce códigos HTTP; el filtro global en `infrastructure/http` mapea clase → status: `ProductNotFoundError` → 404,
   `InvalidCouponError` → 400, `InsufficientStockError` → 409, errores de validación de Nest → 400, resto → 500 con

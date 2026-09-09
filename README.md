@@ -34,7 +34,7 @@ core-ecommerce-checkout/
 │   ├── backend/          # API REST (NestJS) — src/{domain,application,infrastructure,presentation}
 │   └── frontend/         # Aplicación web (Angular) — src/app/checkout/{components,services,state,interface}
 ├── packages/
-│   └── shared/           # Interfaces, enumerables y constantes del dominio compartidas (HU-02)
+│   └── shared/           # @cec/shared: interfaces, enumerables y constantes del dominio, compilado a dist/ en pnpm install
 ├── docs/
 │   ├── arquitectura.md   # Decisiones de diseño, patrones, trade-offs y principios de seguridad
 │   └── ia.md             # Gobernanza y bitácora de co-creación con IA
@@ -75,10 +75,10 @@ Si el archivo `.env` no existe, el backend arranca con esos valores por defecto 
 
 | Comando | Descripción |
 |---|---|
-| `pnpm dev` | Levanta backend (`http://localhost:3000`) y frontend (`http://localhost:4200`) en paralelo |
+| `pnpm dev` | Compila `@cec/shared` y levanta backend (`http://localhost:3000`) y frontend (`http://localhost:4200`) en paralelo |
 | `pnpm dev:backend` | Solo backend, con recarga en caliente |
 | `pnpm dev:frontend` | Solo frontend, con recarga en caliente |
-| `pnpm build` | Compila ambas aplicaciones |
+| `pnpm build` | Compila `@cec/shared` y luego ambas aplicaciones (orden topológico del workspace) |
 
 Comprobación rápida del backend: `GET http://localhost:3000/health` responde `200 { "status": "ok" }`.
 
@@ -86,10 +86,10 @@ Comprobación rápida del backend: `GET http://localhost:3000/health` responde `
 
 | Comando | Descripción |
 |---|---|
-| `pnpm test` | Pruebas unitarias de ambas aplicaciones |
+| `pnpm test` | Pruebas unitarias de los contratos compartidos y de ambas aplicaciones |
 | `pnpm test:cov` | Pruebas unitarias con reporte de cobertura; umbral global del 80% en statements, branches, functions y lines |
-| `pnpm lint` | ESLint (con Prettier) en ambas aplicaciones |
+| `pnpm lint` | ESLint (con Prettier) en los tres paquetes del workspace |
 | `pnpm --filter @cec/backend test:e2e` | Pruebas end-to-end del backend (HTTP real con supertest) |
 | `pnpm audit` | Auditoría de dependencias; el proyecto se mantiene sin vulnerabilidades conocidas |
 
-Los reportes de cobertura quedan en `apps/backend/coverage` y `apps/frontend/coverage`.
+Los reportes de cobertura quedan en `packages/shared/coverage`, `apps/backend/coverage` y `apps/frontend/coverage`.

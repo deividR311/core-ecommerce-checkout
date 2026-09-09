@@ -40,7 +40,7 @@ apps/frontend/src/app/checkout/
 apps/frontend/src/environments/   environment.ts (apiBaseUrl) tipado con IEnvironment.
 apps/frontend/src/testing/mocks/  mock[Entidad] + barrel index.ts.
 
-packages/shared/     Interfaces I*, enumerables *Enum, constantes del dominio.
+packages/shared/     @cec/shared: interfaces I*, enumerables *Enum, constantes del dominio. Barrel en src/index.ts.
 ```
 
 La separación por capa (y no por feature) en el backend se eligió porque el proyecto tiene un solo módulo funcional
@@ -197,3 +197,21 @@ aprobadas por el desarrollador antes de codificar.
 | `.gitkeep` en las carpetas de capa vacías (`domain`, `application`, `infrastructure`, `services`, `state`, `interface`) | Crear las carpetas cuando llegue la primera HU que las use | La HU-01 exige la estructura visible desde el primer commit. Se eliminan a medida que cada carpeta recibe archivos reales. |
 | Override `multer >= 2.3.0` en `pnpm-workspace.yaml` | Aceptar los avisos (no eran críticos) | `@nestjs/platform-express` arrastraba `multer` 2.2.0 con tres avisos altos de denegación de servicio. El proyecto no usa `multer` directamente; el override deja `pnpm audit` limpio sin tocar código. |
 | Cobertura con `coverageProvider: 'v8'` | istanbul (default de Jest) | istanbul marca una rama no cubierta en cada método decorado (`@Get`, `@Component`), lo que hunde el porcentaje de ramas sin reflejar código real; v8 mide sobre el código ejecutado. Se excluyen de cobertura `main.ts`, `*.interface.ts`, `environments/` y `testing/`, que no contienen lógica. |
+
+## 10. Decisiones de implementación de los contratos compartidos (HU-02)
+
+Decisiones tomadas al construir `@cec/shared`. Todas fueron propuestas por la IA y aprobadas por el desarrollador antes
+de codificar.
+
+| Decisión | Alternativa descartada | Razón |
+|---|---|---|
+| El paquete se compila con `tsc` a `dist/` (CommonJS con `.d.ts`) y se consume como dependencia `workspace:*` con `exports` (`types`/`default`) | Consumir las fuentes directamente con `paths` en cada tsconfig o con `main: src/index.ts` | Enums y constantes son código en tiempo de ejecución: Node no ejecuta TypeScript de `node_modules` y `tsc` del backend no emite archivos fuera de su `rootDir`. Las alternativas obligaban a mover `rootDir` a la raíz del monorepo, cambiar `start:prod`, agregar `moduleNameMapper` en ambos Jest o pasar el backend a webpack. Compilar a `dist` funciona sin trucos en `nest build`, `node dist/main`, ambos Jest y `ng build`. |
+| `prepare` en `shared` compila el paquete durante `pnpm install`; el script `dev` de la raíz lo recompila antes de levantar las apps | Exigir un `pnpm build` manual tras clonar | Un clon recién instalado queda listo para `pnpm dev`. `pnpm build` ya respeta el orden topológico de pnpm (`shared` primero). |
+| Salida CommonJS y `allowedCommonJsDependencies: ['@cec/shared']` en `angular.json` | Emitir ESM | El Jest del backend corre en CommonJS y tendría que transformar el paquete desde `node_modules`. La línea en `angular.json` solo silencia el aviso de optimización de esbuild; el paquete es diminuto y no afecta el bundle. |
+| Solo interfaces en `shared`; los DTOs con `class-validator` viven en `presentation/dto` e `implements` la interfaz | Clases DTO decoradas en `shared` | Los decoradores exigen `class-validator` y `reflect-metadata`, rompiendo "TypeScript puro". Con `implements` un cambio en la interfaz rompe la compilación del DTO y del servicio Angular a la vez; las respuestas se tipan directamente con la interfaz sin DTO de salida. |
+| Un único `ICheckoutRequest` para `POST /checkout/quote` y `POST /checkout` | `IQuoteRequest` separado | Ambos endpoints reciben exactamente el mismo payload; un alias duplica vocabulario sin aportar tipado. |
+| `ICoupon` fuera de `shared`, en `apps/backend/src/domain/entities` (HU-03/HU-08) | Declararlo en `shared` como listaba el diseño inicial | El cliente nunca recibe cupones (criterio de seguridad). Un contrato compartido invitaría a importarlo desde el frontend. Mismo criterio que `IHealthStatus` en §9. |
+| `IApiErrorDetail.details?: IStockConflict[]` definido desde ahora | Ampliar `IApiError` en HU-12/HU-13 | El `409` de checkout debe listar todos los conflictos y la estructura de error es parte de esta historia; definirlo ahora evita romper el contrato dos historias después. `details` es opcional y solo viaja en ese caso. |
+| Enums de tipo string (`TECHNOLOGY = 'TECHNOLOGY'`) con las cuatro categorías cerradas | Enums numéricos | El valor viaja tal cual en el JSON: legible en la demo y en las pruebas, sin exponer índices internos. |
+| `FLOAT_TOLERANCE` junto a las demás constantes de descuento | Definirla en HU-09 dentro de la estrategia del tope | Es una constante de precisión del dominio, de la misma familia; centralizarla evita tocar el archivo de constantes en HU-09. `roundMoney` y `MAX_DISCOUNT_ALERT_MESSAGE` sí se posponen a HU-05 y HU-19, sus primeros consumidores. |
+| Pruebas unitarias sobre constantes y enumerables (valores del enunciado, orden de precedencia y factor máximo en cascada 0.72675) | Sin pruebas por ser "solo datos" | Fijan por prueba las cifras del enunciado y documentan el hallazgo 3.4.1 de `ia.md`. Con cobertura v8 los enums cuentan como funciones; el umbral del 80% aplica también a este paquete. |
