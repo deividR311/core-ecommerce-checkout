@@ -11,8 +11,10 @@ prevalece este archivo.
 
 ## 1. Cómo se trabaja en cada sesión
 
-El desarrollo está dividido en 25 historias de usuario (HU-00 a HU-24). El desarrollador mantiene las fichas completas
-en un documento propio y **pega en el chat el texto de la HU a implementar** al inicio de cada sesión.
+El desarrollo está dividido en 6 historias de usuario (HU-00 a HU-05, más el ajuste HU-01.1). El backlog original de
+25 tickets (HU-00 a HU-24) se consolidó el 2026-09-09 tras cerrar HU-02; la trazabilidad entre ambas numeraciones está en
+el anexo del documento de historias. El desarrollador mantiene las fichas completas en un documento propio y **pega en el
+chat el texto de la HU a implementar** al inicio de cada sesión.
 
 Protocolo por sesión:
 
@@ -33,37 +35,24 @@ Commits: **una HU por commit**, formato `tipo(NN-slug): mensaje en español` (ej
 
 ## 2. Roadmap de historias
 
-| HU | Título | Área |
-|---|---|---|
-| 00 | Documentación inicial y contexto del proyecto | Base |
-| 01 | Estructura base del monorepo | Base |
-| 02 | Contratos compartidos de tipado (`packages/shared`) | Base |
-| 03 | Repositorio de productos en memoria y datos semilla | Backend |
-| 04 | Consulta del catálogo de productos (`GET /products`) | Backend |
-| 05 | Núcleo del motor de descuentos (Strategy + Factory) | Backend |
-| 06 | Regla de descuento por categoría | Backend |
-| 07 | Regla de descuento por volumen | Backend |
-| 08 | Regla de descuento por cupón | Backend |
-| 09 | Límite absoluto de descuento del 35% | Backend |
-| 10 | Validación de payloads y estructura estándar de error | Backend |
-| 11 | Cotización del carrito (`POST /checkout/quote`) | Backend |
-| 12 | Validación de stock disponible | Backend |
-| 13 | Procesamiento y persistencia de la orden (`POST /checkout`) | Backend |
-| 14 | Consulta de órdenes persistidas (`GET /orders`, `GET /orders/:id`) | Backend |
-| 15 | Listado de productos del catálogo | Frontend |
-| 16 | Gestión reactiva del carrito (Observer con signals) | Frontend |
-| 17 | Control de stock en la interfaz | Frontend |
-| 18 | Aplicación de cupón y desglose de descuentos | Frontend |
-| 19 | Alerta de límite máximo de ahorro alcanzado | Frontend |
-| 20 | Confirmación de compra | Frontend |
-| 21 | Manejo de errores del backend en la interfaz | Frontend |
-| 22 | Diseño responsivo | Frontend |
-| 23 | Cobertura de pruebas del backend y casos de borde | Calidad |
-| 24 | Cobertura de pruebas del frontend y casos de borde | Calidad |
+| HU | Título | Área | Estado | Scope del commit |
+|---|---|---|---|---|
+| 00 | Documentación inicial y contexto del proyecto | Base | Implementada | `00-context` |
+| 01 | Estructura base del monorepo | Base | Implementada | `01-monorepo-structure` |
+| 01.1 | Ajuste de autor y copyright en la documentación de código | Fix | Implementada | `01.1-jsdoc-header` |
+| 02 | Contratos compartidos de tipado (`packages/shared`) | Base | Implementada | `02-shared-contracts` |
+| 03 | Catálogo de productos y motor de descuentos acumulativos: repositorios en memoria de productos y cupones, semillas, `GET /products`, Strategy + Factory con las cuatro reglas y `roundMoney` | Backend | Pendiente | `03-catalog-discount-engine` |
+| 04 | Cotización, checkout con validación de stock y consulta de órdenes: DTOs, `ErrorCodeEnum`/`BaseError`, filtro global, `POST /checkout/quote`, `StockValidator`, `POST /checkout`, `GET /orders`, `GET /orders/:id` | Backend | Pendiente | `04-quote-checkout-orders` |
+| 05 | Interfaz de checkout: catálogo, carrito reactivo con control de stock (`CartStore`), cupón y desglose, alerta del 35%, confirmación de compra, manejo de errores y diseño responsivo | Frontend | Pendiente | `05-checkout-ui` |
+
+Correspondencia con el backlog original: HU-03 consolida las antiguas 03–09, HU-04 las antiguas 10–14 y HU-05 las
+antiguas 15–22. Las antiguas 23 y 24 (cobertura) se disolvieron: cada HU entrega sus pruebas y la sección "Calidad
+transversal" del documento de historias asigna cada caso de borde obligatorio a la HU que lo entrega (ver también §9).
+Dentro de HU-05 los bloques están en orden de prioridad para la demo (catálogo y carrito → cupón, desglose y alerta →
+confirmación → errores → responsivo); si hay que recortar, se recorta desde el final.
 
 Cada HU tiene criterios funcionales, técnicos y de seguridad; los técnicos y de seguridad de todas las historias están
-resumidos en las secciones 5 a 9 de este archivo. Las pruebas unitarias **forman parte de cada HU**, no se dejan para
-HU-23/24 (esas historias consolidan cobertura y casos de borde transversales).
+resumidos en las secciones 5 a 9 de este archivo. Las pruebas unitarias **forman parte de cada HU**.
 
 ## 3. Stack y entorno
 
@@ -132,8 +121,8 @@ core-ecommerce-checkout/
 │   ├── index.ts                   # Barrel: única entrada pública de @cec/shared
 │   ├── interfaces/                # *.interface.ts (HU-02)
 │   ├── enums/                     # *.enumerable.enum.ts (HU-02)
-│   ├── constants/                 # discount.constants.ts (HU-02), alert.constants.ts (HU-19)
-│   └── utils/                     # money.util.ts (roundMoney, HU-05)
+│   ├── constants/                 # discount.constants.ts (HU-02), alert.constants.ts (HU-05)
+│   └── utils/                     # money.util.ts (roundMoney, HU-03)
 ├── docs/                          # arquitectura.md, ia.md, historias-usuario.pdf (documento del desarrollador)
 ├── CLAUDE.md
 └── README.md
@@ -195,7 +184,7 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
 - `IOrder { id, createdAt (unix UTC), items: IOrderItem[], couponCode: string | null, breakdown: IDiscountBreakdown, finalTotal }`
 - `IOrderItem { productId, name, unitPrice, quantity }` — precio al momento de la compra.
 - `ICoupon { code, discountRate, isActive }` — **no vive en `shared`**: se define en `apps/backend/src/domain/entities`
-  cuando llegue HU-03/HU-08, porque el cliente nunca recibe cupones y un contrato compartido invitaría a importarlo.
+  en HU-03, porque el cliente nunca recibe cupones y un contrato compartido invitaría a importarlo.
 - `IStockConflict { productId, requested, available }` — detalle de cada conflicto del `409` de checkout.
 - `IApiError { error: IApiErrorDetail }` con `IApiErrorDetail { code: string, message: string, details?: IStockConflict[] }`;
   `details` solo viaja en el `409` de `POST /checkout`.
@@ -212,11 +201,11 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
 | Método | Ruta | HU | Éxito | Errores |
 |---|---|---|---|---|
 | GET | `/health` | 01 | 200 `{ status: 'ok' }` | — |
-| GET | `/products` | 04 | 200 `IProduct[]` | — |
-| POST | `/checkout/quote` | 11 | 200 `IDiscountBreakdown` — **no muta estado**; cupón inválido → `isCouponValid: false` | 400, 404 |
-| POST | `/checkout` | 13 | 201 `IOrder` | 400 (payload o cupón inválido), 404, 409 (stock) |
-| GET | `/orders` | 14 | 200 `IOrder[]` (más reciente primero) | — |
-| GET | `/orders/:id` | 14 | 200 `IOrder` | 400 (no UUID), 404 |
+| GET | `/products` | 03 | 200 `IProduct[]` | — |
+| POST | `/checkout/quote` | 04 | 200 `IDiscountBreakdown` — **no muta estado**; cupón inválido → `isCouponValid: false` | 400, 404 |
+| POST | `/checkout` | 04 | 201 `IOrder` | 400 (payload o cupón inválido), 404, 409 (stock) |
+| GET | `/orders` | 04 | 200 `IOrder[]` (más reciente primero) | — |
+| GET | `/orders/:id` | 04 | 200 `IOrder` | 400 (no UUID), 404 |
 
 ### Decisiones cerradas
 
@@ -277,9 +266,9 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
 
 **10.1 — El tope del 35% no es alcanzable con las reglas del enunciado.** Factor máximo en cascada
 `0.90 × 0.95 × 0.85 = 0.72675` → descuento máximo **27.325%**. Con datos reales la regla 4 nunca se activa y la alerta
-de HU-19 no sería observable en la demo. Opciones y recomendación (cupón adicional de demostración con porcentaje
+del 35% (HU-05) no sería observable en la demo. Opciones y recomendación (cupón adicional de demostración con porcentaje
 suficiente, manteniendo `WELCOME2026` como el del enunciado) en `docs/arquitectura.md` §8.1. **Debe cerrarse antes de
-implementar HU-03 (semilla) y HU-08 (cupón)**; si al llegar a esas HU sigue abierta, preguntar al desarrollador.
+implementar HU-03 (semilla de productos y cupones)**; si al llegar a esa HU sigue abierta, preguntar al desarrollador.
 
 Al cerrar una decisión: moverla a la sección 8 como cerrada, actualizar `docs/arquitectura.md` y registrar el hallazgo
 en `docs/ia.md` §3.4.
