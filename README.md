@@ -87,6 +87,21 @@ Si el archivo `.env` no existe, el backend arranca con esos valores por defecto 
 
 Comprobación rápida del backend: `GET http://localhost:3000/health` responde `200 { "status": "ok" }`.
 
+### Endpoints del backend
+
+| Método | Ruta | Éxito | Errores |
+|---|---|---|---|
+| GET | `/health` | 200 `{ status: 'ok' }` | — |
+| GET | `/products` | 200 `IProduct[]` | — |
+| POST | `/checkout/quote` | 200 `IDiscountBreakdown` (no muta estado; cupón inválido → `isCouponValid: false`) | 400, 404 |
+| POST | `/checkout` | 201 `IOrder` | 400 (payload o cupón inválido), 404, 409 (stock, con `details`) |
+| GET | `/orders` | 200 `IOrder[]` (más reciente primero) | — |
+| GET | `/orders/:id` | 200 `IOrder` | 400 (id no UUID), 404 |
+
+`POST /checkout/quote` y `POST /checkout` reciben el mismo cuerpo `{ items: [{ productId, quantity }], couponCode? }`;
+el cliente nunca envía precios ni totales. Toda respuesta de error tiene la forma
+`{ error: { code, message, details? } }` con códigos `CEC_{MODULO}_{CONSECUTIVO}`; `details` solo viaja en el `409`.
+
 ## Pruebas y calidad
 
 | Comando | Descripción |

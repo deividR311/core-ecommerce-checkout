@@ -67,6 +67,7 @@ Herramienta principal: Claude Code (Anthropic) en VS Code, con estándares globa
 | HU-01.1 | Búsqueda previa de `@author`, `@copyright` y del correo y copyright anteriores en el repositorio; reemplazo de los encabezados JSDoc en los cuatro archivos de la HU; nueva convención de encabezado en `CLAUDE.md` §9; esta fila y el hallazgo 3.4.6 | El desarrollador aprobó extender el alcance al campo `author` de los tres `package.json`, que la HU no listaba | Ver hallazgo 3.4.6. Sin cambios de lógica, dependencias ni scripts |
 | HU-02 | Contraste de la HU contra `CLAUDE.md` con seis discrepancias señaladas antes de codificar (payload único de quote/checkout, DTOs fuera de `shared`, `ICoupon` fuera de `shared`, `IStockConflict` en el error 409, alcance de `roundMoney` y del mensaje de alerta, categorías cerradas); comparación de cuatro estrategias de consumo del paquete; paquete `@cec/shared` completo (`package.json`, tsconfigs, Jest, ESLint, barrel, 2 enums, 6 constantes, 8 interfaces con JSDoc de precisión monetaria); 3 specs con cobertura 100%; dependencia `workspace:*` en ambas apps, script `dev` raíz y `allowedCommonJsDependencies`; verificación del criterio "un cambio rompe la compilación" con archivos temporales en ambas apps; `arquitectura.md` §10, `CLAUDE.md` §3/§4/§8 y README | El desarrollador aprobó las seis recomendaciones y la opción compilada tras pedir justificar que fuera la más sencilla; preguntó cómo se mantiene una única fuente si los DTOs viven en el backend (respuesta: `implements` sobre la interfaz compartida) | La primera corrida de cobertura quedó en 79.41% porque `DiscountTypeEnum` no lo ejercitaba ninguna prueba (v8 cuenta los enums como funciones); se agregaron specs para ambos enumerables. La IA también corrigió un intento fallido de crear los archivos con heredocs de bash, reemplazándolo por escrituras directas |
 | HU-03 | Plan de acción con siete puntos de diseño que la HU dejaba abiertos (puertos asíncronos, `decrementStock` booleano, UUID fijos en la semilla, forma de `IDiscountContext` con `appliedDiscounts`, cálculo de `isCouponValid`, `roundRate` a 4 decimales, `DiscountEngine` sin registrar en Nest) y la recomendación para cerrar la decisión 10.1 con el porcentaje justificado matemáticamente; `roundMoney`/`roundRate` con spec; `ICoupon`, dos puertos con tokens, `IDiscountContext`/`IAppliedDiscount`/`IDiscountStrategy`, utilidades del contexto, cuatro estrategias, `DiscountStrategyFactory`, `DiscountEngine`; semillas de productos y cupones, dos repositorios en memoria, `GetProductsUseCase`, `ProductsController`, providers por token en `AppModule`; 13 specs unitarios (69 pruebas, cobertura 100% de líneas) y e2e de `GET /products`; mocks en `mocks/`; `CLAUDE.md` §2/§4/§7/§8/§10, `arquitectura.md` §4/§8.1/§11, README y esta fila | El desarrollador pidió explicar la matemática del tope antes de decidir, confirmó la opción B con `DEMO30` al 30% ("la funcionalidad intacta y solo agregamos un cupón adicional transversal") y aprobó los siete puntos sin cambios | Ver hallazgo 3.4.1 (cierre) y 3.4.8. La IA corrigió sobre la marcha dos errores propios: un parámetro opcional de constructor en el repositorio `@Injectable` (Nest habría intentado resolverlo) y cuatro `unbound-method` del lint al pasar métodos mockeados a `expect`, reemplazados por aserciones sobre `mock.calls`. Prettier reformateó ocho líneas con `lint:fix` |
+| HU-04 | Plan de acción con once puntos que la HU dejaba abiertos (dependencias faltantes, 413 vs 400, cupón vacío, `OrderNotFoundError`, códigos concretos, `CartResolver` compartido, cableado de dominio con `useFactory`, orden del listado, atomicidad validar → decrementar, ubicación de los logs, pipe y filtro como providers) y respuesta a las tres dudas del desarrollador antes de codificar; instalación de `class-validator`, `class-transformer` y `dayjs`; `ErrorCodeEnum`, `BaseError` y cuatro errores de dominio; `consolidateCartItems`, `StockValidator`, `IOrderRepository` con token; `CartResolver`, cuatro casos de uso, `InMemoryOrderRepository`; `ApiExceptionFilter`, fábricas de `ValidationPipe` y excepciones 400, `applyBodySizeLimit`; `CartItemDto` y `CheckoutRequestDto` con mensajes en español; `CheckoutController` y `OrdersController`; providers en `AppModule`; 21 specs unitarios nuevos y 1 actualizado (186 pruebas, 100% de sentencias, funciones y líneas, 91.9% de ramas) y dos e2e nuevos (37 pruebas e2e en total, con helper `createTestingApp`); `CLAUDE.md` §2/§4/§8, `arquitectura.md` §4/§12, README, esta fila, 3.3.2 y 3.4.9 | El desarrollador aprobó las dependencias, eligió `400` para el cuerpo excesivo en lugar del `413` recomendado (ver 3.3.2), aceptó tratar el cupón vacío como ausencia de cupón dejando el aviso al usuario como tarea secundaria, y simplificó el orden del listado a posición de llegada en el arreglo en lugar de ordenar por fecha; pidió aclarar dónde se guarda la fecha (`IOrder.createdAt` como unix en segundos, único uso de `dayjs`), si la atomicidad afectaba la funcionalidad (no) y para qué sirve registrar pipe y filtro en `AppModule` (ver 3.4.9) | Ver hallazgo 3.4.9. La IA corrigió sobre la marcha cinco errores propios detectados por lint o por las pruebas: un `.catch()` en un spec (prohibido por el estándar, reemplazado por `try/catch`), un spy del logger creado antes de compilar el módulo (capturaba el log de arranque de Nest), `import 'reflect-metadata'` faltante en el spec del DTO con `@Type`, tipado `any` en `jest.SpyInstance`/`jest.Mock` y dos imports sin uso tras `lint:fix`. Prettier reformateó ocho archivos con `lint:fix` |
 
 ### 3.3 Sugerencias de la IA rechazadas o corregidas
 
@@ -82,15 +83,15 @@ Herramienta principal: Claude Code (Anthropic) en VS Code, con estándares globa
 | Criterio técnico | Estabilidad del entorno y reproducibilidad: la versión de Node es una decisión de plataforma, no del framework. Angular 21 cumple el mínimo acordado (≥ 20), soporta Node 22.12+ y trae zoneless estable; la diferencia con 22 no aporta nada a los criterios evaluados. |
 | Decisión final | Mantener Node 22.22.0 y generar el frontend con `@angular/cli@21`. Se documenta en `CLAUDE.md` §3 y `arquitectura.md` §2. |
 
-#### 3.3.2 _Pendiente_
+#### 3.3.2 Responder 413 al cuerpo mayor de 100 KB
 
 | Campo | Detalle |
 |---|---|
-| HU | |
-| Sugerencia de la IA | |
-| Problema detectado | |
-| Criterio técnico | |
-| Decisión final | |
+| HU | HU-04 |
+| Sugerencia de la IA | La HU pedía `400` para un cuerpo mayor a 100 KB. La IA señaló que body-parser emite un `413 Payload Too Large`, que es el código semánticamente correcto, y recomendó conservar el `413` con el formato `IApiError`, actualizando la HU y `CLAUDE.md` §8. |
+| Problema detectado | La recomendación privilegiaba la semántica HTTP sobre el contrato ya definido con el frontend: la ficha de HU-05 y `CLAUDE.md` §8 establecen que el interceptor muestra los `400`/`409` con su mensaje y los `500`/red con uno genérico; un `413` sería un tercer caso que ninguna historia contempla y que habría que documentar y manejar aparte. |
+| Criterio técnico | Consistencia del contrato de errores frente a pureza semántica: el cliente distingue "error de la petición" (4xx de negocio, con mensaje) de "error del servidor"; un cuerpo excesivo es un error de la petición y cae en la primera categoría. El remapeo cuesta una comparación en el filtro (`status === 413`) y mantiene la tabla de errores de la HU sin excepciones. |
+| Decisión final | Remapear a `400` con código `CEC_CHECKOUT_1002` y mensaje en español. Registrado en `CLAUDE.md` §8 y `arquitectura.md` §12; el e2e envía un cupón de 110 000 caracteres y verifica el `400`. |
 
 ### 3.4 Hallazgos surgidos durante la co-creación
 
@@ -109,6 +110,17 @@ ajuste de centavos) contra 30% (40.15%, ajuste de 66.95 sobre la laptop). El des
 explicable en la sustentación. Quedó documentado en `CLAUDE.md` §8 (decisión cerrada), `arquitectura.md` §8.1 y en la
 propia semilla `coupons.seed.ts`. Las pruebas del motor fijan ambos casos reales: `WELCOME2026` (27.325%, total 944.77) y
 `DEMO30` (truncado al 35%, total 844.99).
+
+#### 3.4.9 Lo que `main.ts` configura no existe en las pruebas e2e (HU-04)
+
+Al planificar la HU la IA advirtió que los e2e existentes construyen la aplicación con
+`Test.createTestingModule({ imports: [AppModule] })`, sin pasar por `bootstrap()`. Si el `ValidationPipe` y el filtro
+global se registraban en `main.ts`, como sugiere la ficha, los e2e de payload corrupto y de formato de error probarían un
+comportamiento distinto al de producción. Se registraron como providers `APP_PIPE` y `APP_FILTER` en `AppModule` y el
+límite de 100 KB, que es una opción del parser de Express, quedó en `main.ts` mediante un helper reutilizado por el e2e.
+Dos detalles surgieron al ejecutar: el error de body-parser por tamaño no es una `HttpException` sino un error con
+`status: 413`, así que el filtro lo reconoce por ese campo antes de tratarlo como `500`; y el spec del DTO con `@Type`
+necesita `import 'reflect-metadata'` porque corre sin Nest. Los 37 e2e pasaron en la primera ejecución.
 
 #### 3.4.8 v8 también reporta ramas falsas en un controlador con constructor (HU-03)
 
