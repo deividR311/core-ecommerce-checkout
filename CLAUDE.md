@@ -70,23 +70,31 @@ HU-23/24 (esas historias consolidan cobertura y casos de borde transversales).
 | Capa | Tecnología |
 |---|---|
 | Runtime | Node.js 22 vía nvm-windows. Si `node` no está en el PATH de la terminal, reiniciar la terminal o VS Code. |
-| Gestor de paquetes | `pnpm` con workspaces (`apps/*`, `packages/*`), activado con `corepack enable pnpm` |
-| Backend | NestJS 11, TypeScript `strict`, puerto `3000`, **sin prefijo global** de ruta |
-| Frontend | Angular (última estable, ≥ 20): standalone components, signals, SCSS, formularios reactivos, `inject()`. Puerto `4200` |
+| Gestor de paquetes | `pnpm` 10 con workspaces (`apps/*`, `packages/*`), activado con `corepack enable pnpm`. Versión fijada en `packageManager` del `package.json` raíz (Corepack 0.34 no puede ejecutar pnpm 12). `engine-strict=true` en `.npmrc`. Paquetes: `@cec/backend`, `@cec/frontend`, `@cec/shared` |
+| Backend | NestJS 11 generado con `@nestjs/cli@11` (el CLI más reciente genera Nest 12 con ESM, vitest y oxlint, que no es el stack acordado). TypeScript `strict` + `noUnusedLocals`, puerto `3000`, **sin prefijo global** de ruta |
+| Frontend | Angular 21 (zoneless por defecto): standalone components, signals, SCSS, formularios reactivos, `inject()`, `ChangeDetectionStrategy.OnPush`. Puerto `4200`. Se fijó en 21 porque Angular 22 exige Node ≥ 22.22.3 y el entorno se mantiene en 22.22.0 por decisión del desarrollador. Archivos con sufijo `.component.ts` (schematic `type: component` en `angular.json`) |
 | Contratos | `packages/shared` — TypeScript puro, sin dependencias de framework, consumido por ambas apps vía workspace |
-| Pruebas | Jest en ambas apps (`jest-preset-angular` en frontend). `coverageThreshold` global 80% en statements, branches, functions y lines |
+| Pruebas | Jest 30 en ambas apps (`jest-preset-angular` con `setupZonelessTestEnv` en frontend). `jest.config.ts` por app con `coverageThreshold` global 80% en statements, branches, functions y lines y `coverageProvider: 'v8'` (istanbul reporta ramas falsas en métodos decorados). Excluidos de cobertura: `main.ts`, `*.interface.ts`, `environments/`, `testing/`. Backend además tiene `test:e2e` (supertest) |
+| Lint y formato | `eslint.config.mjs` y `.prettierrc` **en la raíz**, extendidos por cada app (`angular-eslint` en frontend). Prettier impone 2 espacios, comillas simples, punto y coma, `printWidth` 120, `arrowParens: avoid`, LF |
 | Validación HTTP | `class-validator` + `class-transformer`; `ValidationPipe` global con `whitelist`, `forbidNonWhitelisted`, `transform` |
 | Fechas | `dayjs`. Transporte y persistencia como unix timestamp UTC sin milisegundos; el frontend convierte a local |
 | Identificadores | UUID v4 generado en servidor (`crypto.randomUUID()`, sin librería adicional) |
 | Estado frontend | Servicio Angular con signals. **Sin NgRx ni ninguna librería de estado** |
 
-Variables de entorno del backend (`.env.example` versionado, `.env` ignorado): `PORT=3000`,
-`CORS_ORIGIN=http://localhost:4200`. El frontend lee `environment.apiBaseUrl` (`http://localhost:3000` en desarrollo).
+Variables de entorno del backend (`apps/backend/.env.example` versionado, `.env` ignorado): `PORT=3000`,
+`CORS_ORIGIN=http://localhost:4200`. Se cargan en `main.ts` con `process.loadEnvFile()` nativo de Node 22 (sin `dotenv`
+ni `@nestjs/config`); si falta `.env` se usan esos valores por defecto con un `WARN`, y `CORS_ORIGIN='*'` se rechaza
+cayendo al origen por defecto. El frontend lee `environment.apiBaseUrl` (`http://localhost:3000` en desarrollo), tipado
+con `IEnvironment` en `src/environments/environment.interface.ts`.
 
 No instalar librerías adicionales a las listadas sin consultar. Versionar `.gitattributes` con `* text=auto eol=lf`.
+`docs/historias-usuario.pdf` está en `.gitignore` (documento de trabajo del desarrollador). `pnpm-workspace.yaml` lleva
+un `override` de `multer >= 2.3.0` (transitivo de `@nestjs/platform-express`) para dejar `pnpm audit` sin avisos.
 
-Comandos objetivo desde la raíz (se concretan en HU-01): `pnpm install`, `pnpm dev` (ambas apps), `pnpm dev:backend`,
-`pnpm dev:frontend`, `pnpm test` y `pnpm test:cov` (ambas apps con cobertura), `pnpm lint`, `pnpm build`.
+Comandos desde la raíz (cerrados en HU-01): `pnpm install`, `pnpm dev` (ambas apps en paralelo), `pnpm dev:backend`,
+`pnpm dev:frontend`, `pnpm test`, `pnpm test:cov` (ambas apps con cobertura), `pnpm lint`, `pnpm build`. Además
+`pnpm --filter @cec/backend test:e2e`. Los scripts raíz delegan con `pnpm --recursive`; cada app expone `dev`, `build`,
+`lint`, `test` y `test:cov` con esos nombres exactos.
 
 ## 4. Estructura de carpetas
 
@@ -108,14 +116,16 @@ core-ecommerce-checkout/
 │   │   │   └── http/              # Filtro global de excepciones, mapeo error → status
 │   │   └── presentation/
 │   │       ├── controllers/       # HealthController, ProductsController, CheckoutController, OrdersController
-│   │       └── dto/               # CartItemDto, CheckoutRequestDto (class-validator)
+│   │       ├── dto/               # CartItemDto, CheckoutRequestDto (class-validator)
+│   │       └── interface/         # Interfaces propias del borde HTTP (IHealthStatus)
 │   └── frontend/src/
+│       ├── app/                   # app.component.ts (solo <router-outlet />), app.config.ts, app.routes.ts
 │       ├── app/checkout/
-│       │   ├── components/        # Componentes standalone, sin lógica de negocio
+│       │   ├── components/        # Componentes standalone *.component.ts, sin lógica de negocio (CheckoutPageComponent)
 │       │   ├── services/          # ProductsService, CheckoutService, NotificationService, interceptor de errores
 │       │   ├── state/             # CartStore
 │       │   └── interface/         # Interfaces exclusivas del frontend (*.interface.ts)
-│       ├── environments/
+│       ├── environments/          # environment.ts (apiBaseUrl) + environment.interface.ts (IEnvironment)
 │       └── testing/mocks/         # mock[Entidad] + barrel index.ts
 ├── packages/shared/src/
 │   ├── interfaces/                # *.interface.ts
@@ -135,7 +145,8 @@ que los usa; mocks del frontend centralizados en `src/testing/mocks/`.
 - `domain` no importa nada de `application`, `infrastructure`, `presentation` ni de `@nestjs/*`. Sin decoradores.
 - `application` depende solo de `domain` (y de `@nestjs/common` únicamente para `@Injectable`/`@Inject`). Nunca de `infrastructure`.
 - `presentation` invoca **únicamente casos de uso**. Un controlador que inyecte un repositorio o contenga una regla de
-  negocio es una violación severa.
+  negocio es una violación severa. Única excepción documentada: `HealthController` responde `{ status: 'ok' }` sin caso
+  de uso porque no hay dominio que orquestar (ver `docs/arquitectura.md` §9).
 - Repositorios inyectados por token (`Symbol` o string constante exportada junto al puerto) contra su interfaz.
 - Los casos de uso no contienen reglas matemáticas: resuelven datos por los puertos, arman el contexto y delegan en dominio.
 

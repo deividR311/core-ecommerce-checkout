@@ -1,0 +1,29 @@
+# Dependencias
+node_modules/
+
+# Compilados
+dist/
+
+# Cobertura de pruebas
+coverage/
+
+# Caché de Angular CLI
+.angular/
+
+# Variables de entorno (solo se versiona .env.example)
+.env
+.env.*
+!.env.example
+
+# Documento de trabajo del desarrollador
+docs/historias-usuario.pdf
+
+# Editores y sistema operativo
+.idea/
+*.log
+.DS_Store
+Thumbs.db
+
+# Archivos de sesión de skills (preflight / prepare-pr)
+.pr-preflight-state.json
+.prepare-pr-*.json

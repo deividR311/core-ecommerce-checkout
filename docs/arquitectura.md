@@ -18,8 +18,10 @@ La dificultad no está en la cantidad de código sino en que el cálculo sea **c
 | **NestJS** | Inyección de dependencias nativa, que es lo que hace viable invertir dependencias hacia puertos abstractos sin escribir un contenedor propio. Módulos, pipes y filtros globales resuelven validación de entrada y formato de error de forma declarativa. |
 | **Angular con signals** | El carrito es estado reactivo derivado (subtotal, unidades, stock restante, alerta) y signals con `computed` lo modelan de forma directa y testeable sin librería de estado adicional. Componentes standalone reducen ceremonia de módulos. |
 | **Persistencia en memoria** | El enunciado la admite y elimina infraestructura externa para la demo. El costo es que el estado se pierde al reiniciar; se acepta porque el foco evaluado es el aislamiento del dominio, y los repositorios en memoria implementan puertos que una implementación real reemplazaría sin tocar casos de uso ni dominio. |
-| **pnpm workspaces** | Monorepo con enlaces locales entre `apps/*` y `packages/shared` sin publicar paquetes. Instalación única desde la raíz. |
-| **Jest en ambas apps** | Un solo runner, una sola forma de leer cobertura en consola durante la sustentación. `jest-preset-angular` evita Karma y el navegador. |
+| **pnpm 10 workspaces vía Corepack** | Monorepo con enlaces locales entre `apps/*` y `packages/shared` sin publicar paquetes. Instalación única desde la raíz. La versión se fija en `packageManager` para que todo el equipo use la misma; Corepack 0.34 (el que trae Node 22) no ejecuta pnpm 12, por eso se fija la 10. |
+| **Jest en ambas apps** | Un solo runner, una sola forma de leer cobertura en consola durante la sustentación. `jest-preset-angular` evita Karma, vitest y el navegador. Cobertura con `coverageProvider: 'v8'`: istanbul atribuye una rama no cubierta a cada método decorado de Nest/Angular, lo que penaliza el umbral del 80% sin reflejar código real. |
+| **Angular 21 zoneless** | Angular 22 exige Node ≥ 22.22.3 y el entorno del desarrollador se mantiene en 22.22.0; Angular 21 cumple el mínimo acordado (≥ 20) y trae zoneless por defecto, coherente con un estado basado en signals. Las pruebas usan `setupZonelessTestEnv` y `await fixture.whenStable()`. |
+| **Lint y formato compartidos** | `eslint.config.mjs` y `.prettierrc` en la raíz del monorepo; cada app solo agrega su `tsconfigRootDir` y las reglas de su framework. Una única fuente para 2 espacios, comillas simples y punto y coma. |
 
 ## 3. Estructura de carpetas
 
@@ -28,13 +30,15 @@ apps/backend/src/
 ├── domain/          Entidades, puertos, motor de descuentos, errores de dominio. Sin NestJS.
 ├── application/     Casos de uso: orquestan puertos y dominio. Sin reglas matemáticas.
 ├── infrastructure/  Repositorios en memoria, datos semilla, filtro de excepciones, pipes.
-└── presentation/    Controladores y DTOs HTTP.
+└── presentation/    Controladores, DTOs e interfaces propias del borde HTTP (IHealthStatus).
 
 apps/frontend/src/app/checkout/
 ├── components/      UI standalone, sin lógica de negocio.
 ├── services/        HTTP tipado y notificaciones.
 ├── state/           CartStore (signals): única fuente de estado.
 └── interface/       Interfaces exclusivas del frontend.
+apps/frontend/src/environments/   environment.ts (apiBaseUrl) tipado con IEnvironment.
+apps/frontend/src/testing/mocks/  mock[Entidad] + barrel index.ts.
 
 packages/shared/     Interfaces I*, enumerables *Enum, constantes del dominio.
 ```
@@ -177,3 +181,19 @@ Opciones consideradas:
 **Recomendación: B**, dejando explícito en `docs/ia.md` y en la sustentación que se detectó la inconsistencia y que el
 cupón adicional existe solo para hacer observable la regla 4. **Pendiente de confirmación** antes de implementar HU-03
 (datos semilla) y HU-08 (cupón).
+
+## 9. Decisiones de implementación de la estructura base (HU-01)
+
+Decisiones tomadas al construir el scaffold que no estaban en el diseño objetivo. Todas fueron propuestas por la IA y
+aprobadas por el desarrollador antes de codificar.
+
+| Decisión | Alternativa descartada | Razón |
+|---|---|---|
+| `HealthController` responde `{ status: 'ok' }` directamente, sin caso de uso | Un `GetHealthUseCase` para respetar al pie de la letra "presentación solo invoca casos de uso" | `/health` no tiene dominio que orquestar; un caso de uso vacío sería ceremonia. Es la única excepción a la regla de capas y queda declarada en `CLAUDE.md` §5. |
+| Variables de entorno con `process.loadEnvFile()` nativo de Node 22 | `@nestjs/config` o `dotenv` | Una dependencia menos para dos variables. Si falta `.env` se conservan valores por defecto de desarrollo con un `WARN`; `CORS_ORIGIN='*'` se rechaza y cae al origen por defecto. `enableCors({ origin })` recibe siempre una cadena, nunca un comodín. |
+| Scaffold del backend con `@nestjs/cli@11` | Último Nest CLI (genera Nest 12: ESM, TypeScript 6, vitest, oxlint) | El stack acordado es Nest 11 con Jest y ESLint. Nest 12 obligaría a migrar a Jest sobre ESM con decoradores, con un costo alto para la prueba y sin beneficio en los criterios evaluados. |
+| Frontend con Angular 21 en lugar de 22 | Actualizar Node de la máquina a ≥ 22.22.3 | Decisión del desarrollador: la versión de Node es de plataforma y no se cambia por un parche. Angular 21 cumple el mínimo (≥ 20). Ver `ia.md` §3.3.1. |
+| Interfaz `IHealthStatus` en `presentation/interface/` | Declarar el tipo inline en el controlador o en `packages/shared` | El estándar del equipo exige interfaces en carpeta `interface/` por módulo; el frontend no consume `/health`, así que no pertenece a `shared`. |
+| `.gitkeep` en las carpetas de capa vacías (`domain`, `application`, `infrastructure`, `services`, `state`, `interface`) | Crear las carpetas cuando llegue la primera HU que las use | La HU-01 exige la estructura visible desde el primer commit. Se eliminan a medida que cada carpeta recibe archivos reales. |
+| Override `multer >= 2.3.0` en `pnpm-workspace.yaml` | Aceptar los avisos (no eran críticos) | `@nestjs/platform-express` arrastraba `multer` 2.2.0 con tres avisos altos de denegación de servicio. El proyecto no usa `multer` directamente; el override deja `pnpm audit` limpio sin tocar código. |
+| Cobertura con `coverageProvider: 'v8'` | istanbul (default de Jest) | istanbul marca una rama no cubierta en cada método decorado (`@Get`, `@Component`), lo que hunde el porcentaje de ramas sin reflejar código real; v8 mide sobre el código ejecutado. Se excluyen de cobertura `main.ts`, `*.interface.ts`, `environments/` y `testing/`, que no contienen lógica. |

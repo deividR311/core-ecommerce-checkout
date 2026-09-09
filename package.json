@@ -1,0 +1,31 @@
+{
+  "name": "core-ecommerce-checkout",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MVP de checkout de e-commerce con motor de descuentos acumulativos en cascada",
+  "author": "Johan Rodriguez <jcendales@soysentinel.com>",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22.0.0 <23",
+    "pnpm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "pnpm --recursive --parallel --filter \"./apps/*\" run dev",
+    "dev:backend": "pnpm --filter @cec/backend run dev",
+    "dev:frontend": "pnpm --filter @cec/frontend run dev",
+    "build": "pnpm --recursive run build",
+    "test": "pnpm --recursive run test",
+    "test:cov": "pnpm --recursive run test:cov",
+    "lint": "pnpm --recursive run lint"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^17.0.0",
+    "prettier": "^3.4.2",
+    "typescript-eslint": "^8.20.0"
+  }
+}
