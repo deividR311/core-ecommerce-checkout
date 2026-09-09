@@ -16,6 +16,11 @@ El backend valida stock, calcula el desglose exacto, decrementa inventario y per
 armar el carrito en tiempo real, aplicar el cupón, ver el desglose completo y recibe una alerta cuando se alcanza el
 tope de ahorro.
 
+> **Dato de demostración.** Con las tres reglas del enunciado el descuento máximo en cascada es
+> `1 − 0.90 × 0.95 × 0.85 = 27.325%`, así que el tope del 35% nunca se activaría con datos reales. La semilla incluye un
+> cupón adicional `DEMO30` (30%) que, combinado con productos de Tecnología, sí supera el tope y permite ver la regla 4 y
+> su alerta en vivo. `WELCOME2026` se mantiene tal como lo define el enunciado. Detalle en `docs/arquitectura.md` §8.1.
+
 ## Stack
 
 | Capa | Tecnología |

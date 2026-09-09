@@ -20,3 +20,6 @@ export type { IDiscountBreakdown } from './interfaces/discount-breakdown.interfa
 export type { IOrder, IOrderItem } from './interfaces/order.interface';
 export type { IStockConflict } from './interfaces/stock-conflict.interface';
 export type { IApiError, IApiErrorDetail } from './interfaces/api-error.interface';
+
+/** Utilidades */
+export { roundMoney, roundRate } from './utils/money.util';
