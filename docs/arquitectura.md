@@ -168,19 +168,19 @@ Toda HU debe cumplirlos; los criterios de seguridad de cada ficha los concretan.
 Con las tres reglas aplicadas en cascada sobre un carrito compuesto íntegramente por productos de Tecnología, con
 volumen superior a 100 y cupón válido, el factor total es `0.90 × 0.95 × 0.85 = 0.72675`, es decir un descuento
 máximo de **27.325%**. Ninguna combinación de productos reales del catálogo puede superar el 35%; la cuarta regla
-nunca se activaría en la demo y HU-19 no podría mostrarse en vivo.
+nunca se activaría en la demo y la alerta del 35% (HU-05) no podría mostrarse en vivo.
 
 Opciones consideradas:
 
 | Opción | Pros | Contras |
 |---|---|---|
-| A. Probar el tope solo en pruebas unitarias con contextos sintéticos | Fiel al enunciado; cero código extra | La alerta de HU-19 no se ve en la demo |
+| A. Probar el tope solo en pruebas unitarias con contextos sintéticos | Fiel al enunciado; cero código extra | La alerta del 35% (HU-05) no se ve en la demo |
 | B. Repositorio de cupones con más de un cupón activo, uno de ellos con porcentaje suficiente para superar el tope (ej. un cupón de demostración al 30%) | El modelo de cupón ya es extensible (código, porcentaje, estado); la demo muestra el tope real; `WELCOME2026` sigue siendo el cupón del enunciado | Introduce un cupón no mencionado en el enunciado; debe documentarse como dato de demostración |
 | C. Interpretar el descuento de categoría como configurable por categoría con porcentajes distintos | Extensible | Inventa reglas de negocio que el enunciado no pide |
 
 **Recomendación: B**, dejando explícito en `docs/ia.md` y en la sustentación que se detectó la inconsistencia y que el
 cupón adicional existe solo para hacer observable la regla 4. **Pendiente de confirmación** antes de implementar HU-03
-(datos semilla) y HU-08 (cupón).
+(datos semilla de productos y cupones, y estrategia de cupón).
 
 ## 9. Decisiones de implementación de la estructura base (HU-01)
 
@@ -210,8 +210,8 @@ de codificar.
 | Salida CommonJS y `allowedCommonJsDependencies: ['@cec/shared']` en `angular.json` | Emitir ESM | El Jest del backend corre en CommonJS y tendría que transformar el paquete desde `node_modules`. La línea en `angular.json` solo silencia el aviso de optimización de esbuild; el paquete es diminuto y no afecta el bundle. |
 | Solo interfaces en `shared`; los DTOs con `class-validator` viven en `presentation/dto` e `implements` la interfaz | Clases DTO decoradas en `shared` | Los decoradores exigen `class-validator` y `reflect-metadata`, rompiendo "TypeScript puro". Con `implements` un cambio en la interfaz rompe la compilación del DTO y del servicio Angular a la vez; las respuestas se tipan directamente con la interfaz sin DTO de salida. |
 | Un único `ICheckoutRequest` para `POST /checkout/quote` y `POST /checkout` | `IQuoteRequest` separado | Ambos endpoints reciben exactamente el mismo payload; un alias duplica vocabulario sin aportar tipado. |
-| `ICoupon` fuera de `shared`, en `apps/backend/src/domain/entities` (HU-03/HU-08) | Declararlo en `shared` como listaba el diseño inicial | El cliente nunca recibe cupones (criterio de seguridad). Un contrato compartido invitaría a importarlo desde el frontend. Mismo criterio que `IHealthStatus` en §9. |
-| `IApiErrorDetail.details?: IStockConflict[]` definido desde ahora | Ampliar `IApiError` en HU-12/HU-13 | El `409` de checkout debe listar todos los conflictos y la estructura de error es parte de esta historia; definirlo ahora evita romper el contrato dos historias después. `details` es opcional y solo viaja en ese caso. |
+| `ICoupon` fuera de `shared`, en `apps/backend/src/domain/entities` (HU-03) | Declararlo en `shared` como listaba el diseño inicial | El cliente nunca recibe cupones (criterio de seguridad). Un contrato compartido invitaría a importarlo desde el frontend. Mismo criterio que `IHealthStatus` en §9. |
+| `IApiErrorDetail.details?: IStockConflict[]` definido desde ahora | Ampliar `IApiError` en HU-04 (checkout) | El `409` de checkout debe listar todos los conflictos y la estructura de error es parte de esta historia; definirlo ahora evita romper el contrato dos historias después. `details` es opcional y solo viaja en ese caso. |
 | Enums de tipo string (`TECHNOLOGY = 'TECHNOLOGY'`) con las cuatro categorías cerradas | Enums numéricos | El valor viaja tal cual en el JSON: legible en la demo y en las pruebas, sin exponer índices internos. |
-| `FLOAT_TOLERANCE` junto a las demás constantes de descuento | Definirla en HU-09 dentro de la estrategia del tope | Es una constante de precisión del dominio, de la misma familia; centralizarla evita tocar el archivo de constantes en HU-09. `roundMoney` y `MAX_DISCOUNT_ALERT_MESSAGE` sí se posponen a HU-05 y HU-19, sus primeros consumidores. |
+| `FLOAT_TOLERANCE` junto a las demás constantes de descuento | Definirla en HU-03 dentro de la estrategia del tope | Es una constante de precisión del dominio, de la misma familia; centralizarla evita tocar el archivo de constantes en HU-03. `roundMoney` y `MAX_DISCOUNT_ALERT_MESSAGE` sí se posponen a HU-03 y HU-05, sus primeros consumidores. |
 | Pruebas unitarias sobre constantes y enumerables (valores del enunciado, orden de precedencia y factor máximo en cascada 0.72675) | Sin pruebas por ser "solo datos" | Fijan por prueba las cifras del enunciado y documentan el hallazgo 3.4.1 de `ia.md`. Con cobertura v8 los enums cuentan como funciones; el umbral del 80% aplica también a este paquete. |

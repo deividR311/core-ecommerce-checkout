@@ -42,7 +42,7 @@ core-ecommerce-checkout/
 └── README.md
 ```
 
-Las historias de usuario (HU-00 a HU-24) se mantienen en un documento de trabajo del desarrollador que no se versiona.
+Las historias de usuario (HU-00 a HU-05) se mantienen en un documento de trabajo del desarrollador que no se versiona.
 
 ## Documentación
 

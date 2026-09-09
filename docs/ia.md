@@ -97,8 +97,19 @@ Herramienta principal: Claude Code (Anthropic) en VS Code, con estándares globa
 
 Al redactar la documentación de arquitectura se calculó el factor máximo de descuento en cascada:
 `0.90 × 0.95 × 0.85 = 0.72675` → descuento máximo **27.325%**. Con las tres reglas del enunciado la regla 4 nunca se
-activa, por lo que la alerta de HU-19 no sería observable en la demo. El análisis de opciones y la recomendación
-quedaron registrados en `docs/arquitectura.md`, sección 8.1, pendientes de decisión antes de HU-03 y HU-08.
+activa, por lo que la alerta del 35% (HU-05) no sería observable en la demo. El análisis de opciones y la recomendación
+quedaron registrados en `docs/arquitectura.md`, sección 8.1, pendientes de decisión antes de HU-03.
+
+#### 3.4.7 Consolidación del backlog de 25 tickets a 6 historias (tras HU-02)
+
+Con HU-00, HU-01, HU-01.1 y HU-02 publicadas, el desarrollador decidió reducir el backlog para concentrar el tiempo
+restante en la funcionalidad demostrable en la sustentación. La IA leyó el documento de historias vigente, lo contrastó
+con `CLAUDE.md` y `docs/arquitectura.md`, y propuso el reparto: HU-03 (repositorios, semillas, catálogo y motor de
+descuentos completo), HU-04 (validación, cotización, checkout con stock y órdenes) y HU-05 (interfaz completa con los
+bloques ordenados por prioridad de demo). Las antiguas HU-23 y HU-24 se disolvieron en una sección de calidad transversal
+porque cada historia ya entrega sus pruebas. El desarrollador fijó el número final de historias (primero 10, luego 6) y
+las cuatro historias implementadas se conservaron sin cambios. La renumeración se propagó a `CLAUDE.md` (§1, §2, §4, §8 y
+§10), `docs/arquitectura.md` (§8.1 y §10), este documento y el `README.md`.
 
 #### 3.4.2 El Nest CLI más reciente ya no genera el stack acordado (HU-01)
 
