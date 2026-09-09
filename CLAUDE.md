@@ -41,7 +41,7 @@ Commits: **una HU por commit**, formato `tipo(NN-slug): mensaje en español` (ej
 | 01 | Estructura base del monorepo | Base | Implementada | `01-monorepo-structure` |
 | 01.1 | Ajuste de autor y copyright en la documentación de código | Fix | Implementada | `01.1-jsdoc-header` |
 | 02 | Contratos compartidos de tipado (`packages/shared`) | Base | Implementada | `02-shared-contracts` |
-| 03 | Catálogo de productos y motor de descuentos acumulativos: repositorios en memoria de productos y cupones, semillas, `GET /products`, Strategy + Factory con las cuatro reglas y `roundMoney` | Backend | Pendiente | `03-catalog-discount-engine` |
+| 03 | Catálogo de productos y motor de descuentos acumulativos: repositorios en memoria de productos y cupones, semillas, `GET /products`, Strategy + Factory con las cuatro reglas y `roundMoney` | Backend | Implementada | `03-catalog-discount-engine` |
 | 04 | Cotización, checkout con validación de stock y consulta de órdenes: DTOs, `ErrorCodeEnum`/`BaseError`, filtro global, `POST /checkout/quote`, `StockValidator`, `POST /checkout`, `GET /orders`, `GET /orders/:id` | Backend | Pendiente | `04-quote-checkout-orders` |
 | 05 | Interfaz de checkout: catálogo, carrito reactivo con control de stock (`CartStore`), cupón y desglose, alerta del 35%, confirmación de compra, manejo de errores y diseño responsivo | Frontend | Pendiente | `05-checkout-ui` |
 
@@ -122,7 +122,7 @@ core-ecommerce-checkout/
 │   ├── interfaces/                # *.interface.ts (HU-02)
 │   ├── enums/                     # *.enumerable.enum.ts (HU-02)
 │   ├── constants/                 # discount.constants.ts (HU-02), alert.constants.ts (HU-05)
-│   └── utils/                     # money.util.ts (roundMoney, HU-03)
+│   └── utils/                     # money.util.ts (roundMoney y roundRate, HU-03)
 ├── docs/                          # arquitectura.md, ia.md, historias-usuario.pdf (documento del desarrollador)
 ├── CLAUDE.md
 └── README.md
@@ -168,8 +168,16 @@ Constantes en `packages/shared/constants/discount.constants.ts` (nunca literales
 dato del cupón (semilla), no en una constante de regla.
 
 Precisión monetaria: los pasos intermedios conservan precisión completa; `roundMoney` (2 decimales) se aplica **solo** al
-construir el `IDiscountBreakdown` final. La comparación contra el tope usa `FLOAT_TOLERANCE = 1e-9` para que un 35%
-exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin excepción.
+construir el `IDiscountBreakdown` final. `effectiveDiscountRate` se calcula sobre los montos ya redondeados con `roundRate`
+(4 decimales); con tope alcanzado es exactamente `MAX_DISCOUNT_RATE`. La comparación contra el tope usa
+`FLOAT_TOLERANCE = 1e-9` para que un 35% exacto **no** se considere superado (`isMaxDiscountReached` solo es `true` cuando
+hubo truncado). Carrito vacío → desglose en ceros, sin excepción.
+
+Implementación (HU-03): el contexto `IDiscountContext { items, couponCode, coupon, originalSubtotal, currentTotal,
+appliedDiscounts }` se crea con `createDiscountContext(items, couponCode, coupon)` en `domain/discounts`; cada estrategia
+registra su resultado (incluso cero) como `IAppliedDiscount { type: DiscountTypeEnum, amount }` y el motor arma el desglose
+leyendo el monto por tipo. `isCouponValid = couponCode === null || coupon !== null`. `DiscountEngine` recibe la cadena por
+constructor y **no** está registrado en Nest: lo cablean los casos de uso de HU-04.
 
 ## 8. Contratos y decisiones cerradas
 
@@ -211,6 +219,21 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
 
 - **Cálculo autoritativo en servidor.** Precios, descuentos, totales, stock y validez de cupón se resuelven solo en el
   servidor a partir de sus repositorios. El frontend calcula localmente únicamente el subtotal original como dato informativo.
+- **Cupón de demostración `DEMO30` (cierre de la antigua decisión 10.1, HU-03).** Con las tres reglas del enunciado el
+  factor máximo en cascada es `0.90 × 0.95 × 0.85 = 0.72675` (descuento máximo 27.325%), así que la regla 4 nunca se
+  activa con datos reales. Se adoptó la opción B de `docs/arquitectura.md` §8.1: la semilla de cupones incluye
+  `WELCOME2026` (15%, el del enunciado), `SUMMER2025` (20%, inactivo, para pruebas) y `DEMO30` (30%, activo, **dato de
+  demostración**). Con `DEMO30` y productos de Tecnología la cascada llega a 40.15% y el tope trunca al 35%; sin
+  Tecnología queda en 33.5% y no lo alcanza. Ninguna regla del enunciado cambia; el cupón existe solo para hacer observable
+  la regla 4 y la alerta de HU-05.
+- **Semilla de productos** con UUID v4 **fijos** (no generados al arrancar) para que demo y e2e sean reproducibles:
+  `Laptop Pro 14` (1299.99, Tecnología, stock 5), `Auriculares Inalámbricos` (89.99, Tecnología, 10), `Cafetera de Goteo`
+  (45.50, Hogar, 8), `Lámpara de Escritorio` (24.90, Hogar, 2), `Camiseta Básica` (19.99, Ropa, 20), `Novela Clásica`
+  (12.75, Libros, 15). Los repositorios en memoria son singletons de Nest registrados en `AppModule` por token `Symbol`;
+  devuelven copias y vuelven a la semilla al reiniciar. Los puertos son asíncronos (`Promise`) con implementación
+  síncrona: `decrementStock` valida y actualiza en un solo paso y retorna `false` sin mutar cuando no hay stock (no lanza
+  `Error` genérico; `InsufficientStockError` llega en HU-04). `findActiveByCode` compara el código exacto: la normalización
+  ocurre en el borde HTTP (HU-04).
 - **Cupón inválido**: tolerado en `quote` (se cotiza sin la regla 3 e `isCouponValid: false`); rechazado en `checkout`
   con `400` sin persistir nada. Normalización: `trim` + mayúsculas, longitud máxima 32, patrón alfanumérico.
 - **Orden de ejecución en checkout**: resolver productos → resolver cupón → validar stock → calcular → decrementar stock →
@@ -264,11 +287,8 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
 
 ## 10. Decisiones abiertas
 
-**10.1 — El tope del 35% no es alcanzable con las reglas del enunciado.** Factor máximo en cascada
-`0.90 × 0.95 × 0.85 = 0.72675` → descuento máximo **27.325%**. Con datos reales la regla 4 nunca se activa y la alerta
-del 35% (HU-05) no sería observable en la demo. Opciones y recomendación (cupón adicional de demostración con porcentaje
-suficiente, manteniendo `WELCOME2026` como el del enunciado) en `docs/arquitectura.md` §8.1. **Debe cerrarse antes de
-implementar HU-03 (semilla de productos y cupones)**; si al llegar a esa HU sigue abierta, preguntar al desarrollador.
+Sin decisiones abiertas. La antigua 10.1 (tope del 35% no alcanzable) se cerró en HU-03 con el cupón de demostración
+`DEMO30`; ver la decisión cerrada en §8, `docs/arquitectura.md` §8.1 y el hallazgo 3.4.1 de `docs/ia.md`.
 
-Al cerrar una decisión: moverla a la sección 8 como cerrada, actualizar `docs/arquitectura.md` y registrar el hallazgo
+Al abrir una decisión nueva, registrarla aquí con número consecutivo (10.2, …). Al cerrar una decisión: moverla a la sección 8 como cerrada, actualizar `docs/arquitectura.md` y registrar el hallazgo
 en `docs/ia.md` §3.4.
