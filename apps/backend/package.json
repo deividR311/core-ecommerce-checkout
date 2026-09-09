@@ -2,7 +2,7 @@
   "name": "@cec/backend",
   "version": "0.1.0",
   "description": "API REST del checkout: motor de descuentos, validación de stock y persistencia de órdenes",
-  "author": "Johan Rodriguez <jcendales@soysentinel.com>",
+  "author": "Johan Rodriguez <deicen24@gmail.com>",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "MVP de checkout de e-commerce con motor de descuentos acumulativos en cascada",
-  "author": "Johan Rodriguez <jcendales@soysentinel.com>",
+  "author": "Johan Rodriguez <deicen24@gmail.com>",
   "license": "UNLICENSED",
   "packageManager": "pnpm@10.34.5",
   "engines": {

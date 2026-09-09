@@ -2,7 +2,7 @@
   "name": "@cec/frontend",
   "version": "0.1.0",
   "description": "Interfaz web del checkout: catálogo, carrito reactivo, cupón y confirmación de compra",
-  "author": "Johan Rodriguez <jcendales@soysentinel.com>",
+  "author": "Johan Rodriguez <deicen24@gmail.com>",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {

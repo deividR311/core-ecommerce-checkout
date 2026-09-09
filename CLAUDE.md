@@ -251,6 +251,17 @@ exacto **no** se considere superado. Carrito vacío → desglose en ceros, sin e
   carrito vacío en quote y checkout, payload corrupto (cantidades ≤ 0, decimales, ids inexistentes, campos extra),
   cupón inexistente/inactivo/vacío, stock insuficiente en uno y varios ítems, stock exacto.
 - Logs (backend): `Clase > metodo - mensaje` con `error.message`, nunca el objeto de error ni el cuerpo de la petición.
+- Encabezado JSDoc de clase (HU-01.1): toda clase en `apps/` y `packages/` lleva exactamente este bloque, con guion largo
+  (`–`) entre nombre y correo. **Prevalece sobre el `@author`/`@copyright` del estándar global del equipo**
+  (`~/.claude/CLAUDE.md`); ninguna historia debe reintroducir el correo corporativo ni el copyright anteriores. El campo `author`
+  de los `package.json` usa la misma identidad (`Johan Rodriguez <deicen24@gmail.com>`).
+  ```typescript
+  /**
+   * @class NombreDeLaClase
+   * @author Johan Rodriguez – deicen24@gmail.com
+   * @copyright Davivienda-2026
+   */
+  ```
 
 ## 10. Decisiones abiertas
 
