@@ -6,8 +6,8 @@ import { HealthController } from './presentation/controllers/health.controller';
 
 /**
  * @class AppModule
- * @author Johan Rodriguez – jcendales@soysentinel.com
- * @copyright Sentinel-2026
+ * @author Johan Rodriguez – deicen24@gmail.com
+ * @copyright Davivienda-2026
  */
 @Module({
   controllers: [HealthController],

@@ -6,8 +6,8 @@ import type { IHealthStatus } from '../interface/health-status.interface';
 
 /**
  * @class HealthController
- * @author Johan Rodriguez – jcendales@soysentinel.com
- * @copyright Sentinel-2026
+ * @author Johan Rodriguez – deicen24@gmail.com
+ * @copyright Davivienda-2026
  */
 @Controller('health')
 export class HealthController {
