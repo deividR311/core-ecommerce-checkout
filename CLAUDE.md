@@ -42,7 +42,7 @@ Commits: **una HU por commit**, formato `tipo(NN-slug): mensaje en español` (ej
 | 01.1 | Ajuste de autor y copyright en la documentación de código | Fix | Implementada | `01.1-jsdoc-header` |
 | 02 | Contratos compartidos de tipado (`packages/shared`) | Base | Implementada | `02-shared-contracts` |
 | 03 | Catálogo de productos y motor de descuentos acumulativos: repositorios en memoria de productos y cupones, semillas, `GET /products`, Strategy + Factory con las cuatro reglas y `roundMoney` | Backend | Implementada | `03-catalog-discount-engine` |
-| 04 | Cotización, checkout con validación de stock y consulta de órdenes: DTOs, `ErrorCodeEnum`/`BaseError`, filtro global, `POST /checkout/quote`, `StockValidator`, `POST /checkout`, `GET /orders`, `GET /orders/:id` | Backend | Pendiente | `04-quote-checkout-orders` |
+| 04 | Cotización, checkout con validación de stock y consulta de órdenes: DTOs, `ErrorCodeEnum`/`BaseError`, filtro global, `POST /checkout/quote`, `StockValidator`, `POST /checkout`, `GET /orders`, `GET /orders/:id` | Backend | Implementada | `04-quote-checkout-orders` |
 | 05 | Interfaz de checkout: catálogo, carrito reactivo con control de stock (`CartStore`), cupón y desglose, alerta del 35%, confirmación de compra, manejo de errores y diseño responsivo | Frontend | Pendiente | `05-checkout-ui` |
 
 Correspondencia con el backlog original: HU-03 consolida las antiguas 03–09, HU-04 las antiguas 10–14 y HU-05 las
@@ -99,11 +99,12 @@ core-ecommerce-checkout/
 │   │   │   ├── services/          # StockValidator
 │   │   │   └── errors/            # BaseError, ErrorCodeEnum, errores concretos de dominio
 │   │   ├── application/
-│   │   │   └── use-cases/         # GetProductsUseCase, QuoteCartUseCase, ProcessCheckoutUseCase, GetOrders*, ...
+│   │   │   ├── services/          # CartResolver (consolidación y resolución de ítems y cupón compartida por quote y checkout)
+│   │   │   └── use-cases/         # GetProductsUseCase, QuoteCartUseCase, ProcessCheckoutUseCase, GetOrdersUseCase, GetOrderByIdUseCase
 │   │   ├── infrastructure/
 │   │   │   ├── persistence/       # InMemory*Repository
 │   │   │   ├── seed/              # products.seed.ts, coupons.seed.ts
-│   │   │   └── http/              # Filtro global de excepciones, mapeo error → status
+│   │   │   └── http/              # ApiExceptionFilter (clase → status), fábricas de ValidationPipe y excepciones 400, límite de cuerpo
 │   │   └── presentation/
 │   │       ├── controllers/       # HealthController, ProductsController, CheckoutController, OrdersController
 │   │       ├── dto/               # CartItemDto, CheckoutRequestDto (class-validator)
@@ -235,18 +236,35 @@ constructor y **no** está registrado en Nest: lo cablean los casos de uso de HU
   `Error` genérico; `InsufficientStockError` llega en HU-04). `findActiveByCode` compara el código exacto: la normalización
   ocurre en el borde HTTP (HU-04).
 - **Cupón inválido**: tolerado en `quote` (se cotiza sin la regla 3 e `isCouponValid: false`); rechazado en `checkout`
-  con `400` sin persistir nada. Normalización: `trim` + mayúsculas, longitud máxima 32, patrón alfanumérico.
+  con `400` sin persistir nada. Normalización con `@Transform` en el DTO: `trim` + mayúsculas, longitud máxima 32, patrón
+  alfanumérico. Un `couponCode` vacío o con solo espacios se transforma a `undefined` y se trata como "sin cupón" (HU-04);
+  el mensaje de cupón inválido es único y no distingue inexistente de inactivo.
+- **Resolución compartida (HU-04)**: `CartResolver` en `application/services` consolida ítems, resuelve productos (lanza
+  `ProductNotFoundError` con todos los faltantes) y resuelve el cupón; la política del cupón queda en cada caso de uso.
+  `DiscountEngine` y `StockValidator` se registran en `AppModule` con `useFactory` (sin decoradores) y los casos de uso los
+  reciben por clase.
 - **Orden de ejecución en checkout**: resolver productos → resolver cupón → validar stock → calcular → decrementar stock →
   persistir. Toda validación antes de cualquier mutación; si algo falla, ningún stock queda decrementado.
 - **Stock insuficiente** → `409` listando **todos** los conflictos como `IStockConflict[]` en `error.details`. Ítems
   repetidos se consolidan por `productId` antes de validar. El decremento nunca deja stock negativo.
 - **Errores de dominio**: `BaseError extends Error { readonly code: ErrorCodeEnum }` en `domain/errors`. El dominio **no**
-  conoce códigos HTTP; el filtro global en `infrastructure/http` mapea clase → status: `ProductNotFoundError` → 404,
-  `InvalidCouponError` → 400, `InsufficientStockError` → 409, errores de validación de Nest → 400, resto → 500 con
-  mensaje genérico. Nunca stack traces hacia el cliente.
+  conoce códigos HTTP; el filtro global `ApiExceptionFilter` en `infrastructure/http` mapea clase → status:
+  `ProductNotFoundError` → 404, `InvalidCouponError` → 400, `InsufficientStockError` → 409 (con `details`),
+  `OrderNotFoundError` → 404, errores de validación de Nest → 400, cuerpo mayor a 100 KB → 400 (remapeo del 413 del
+  parser, decisión del desarrollador), resto → 500 con mensaje genérico. Nunca stack traces hacia el cliente. El pipe y el
+  filtro se registran como `APP_PIPE` y `APP_FILTER` en `AppModule` (no en `main.ts`) para que los e2e los apliquen; el
+  límite de cuerpo sí se configura en `main.ts` con `applyBodySizeLimit`, que los e2e reutilizan.
 - **Códigos de error**: `CEC_{MODULO}_{CONSECUTIVO}` en `ErrorCodeEnum`; consecutivo 1xxx presentación, 2xxx aplicación,
-  3xxx dominio. Módulos: `PRODUCTS`, `CHECKOUT`, `ORDERS`, `DISCOUNTS`.
-- **Límites de entrada**: máximo 50 ítems por carrito, cantidad entera entre 1 y 999, cuerpo máximo 100 KB.
+  3xxx dominio. Módulos: `PRODUCTS`, `CHECKOUT`, `ORDERS`, `DISCOUNTS`. Miembros (HU-04): `CHECKOUT_INVALID_PAYLOAD`
+  (`CEC_CHECKOUT_1001`), `CHECKOUT_PAYLOAD_TOO_LARGE` (`CEC_CHECKOUT_1002`), `ORDERS_INVALID_ID` (`CEC_ORDERS_1001`),
+  `CHECKOUT_UNEXPECTED_ERROR` (`CEC_CHECKOUT_2001`), `PRODUCTS_NOT_FOUND` (`CEC_PRODUCTS_3001`), `DISCOUNTS_INVALID_COUPON`
+  (`CEC_DISCOUNTS_3001`), `CHECKOUT_INSUFFICIENT_STOCK` (`CEC_CHECKOUT_3001`), `ORDERS_NOT_FOUND` (`CEC_ORDERS_3001`). Los
+  `400` de `ValidationPipe` y `ParseUUIDPipe` salen de fábricas en `infrastructure/http` que adjuntan `{ code, message }`
+  en español; los mensajes de `class-validator` se declaran en español en cada decorador.
+- **Límites de entrada**: máximo 50 ítems por carrito, cantidad entera entre 1 y 999, cuerpo máximo 100 KB. `productId`
+  y el `id` de `GET /orders/:id` se validan como UUID **v4**.
+- **Listado de órdenes**: `InMemoryOrderRepository` conserva el orden de llegada y `findAll` lo devuelve invertido (última
+  insertada primero); no se ordena por `createdAt` porque tiene precisión de segundos (decisión del desarrollador, HU-04).
 - **Alerta del 35%** en frontend se enciende solo con `isMaxDiscountReached` del servidor; el frontend no compara montos.
   Es persistente (sin auto-cierre), distinta de errores e info, con `role="status"` y `aria-live`.
 - **Invalidación del desglose**: cualquier mutación del carrito pone `isBreakdownStale = true`; la alerta se apaga y

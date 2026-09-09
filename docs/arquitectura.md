@@ -100,6 +100,11 @@ POST /checkout  { items: [{ productId, quantity }], couponCode? }
 `POST /checkout/quote` recorre los pasos 1, 2 y 4 únicamente (sin validar stock ni mutar); si el cupón es inválido
 no lanza error: cotiza sin la regla 3 y responde `isCouponValid: false`.
 
+Los pasos 1 y 2 son idénticos en ambos casos de uso y viven en el servicio de aplicación `CartResolver`
+(`application/services`): consolida los ítems repetidos, resuelve los productos por el puerto, lanza
+`ProductNotFoundError` con todos los identificadores faltantes y resuelve el cupón sin decidir política. La política
+(tolerar en cotización, rechazar en checkout) queda en cada caso de uso (HU-04, §12).
+
 ## 5. Patrones de diseño
 
 ### Strategy — reglas de descuento
@@ -249,3 +254,24 @@ en el plan de la historia y aprobadas por el desarrollador antes de codificar.
 | `findActiveByCode` compara el código exacto | Normalizar (`trim` + mayúsculas) dentro del repositorio | La normalización es una regla del borde HTTP (decisión cerrada en `CLAUDE.md` §8) y la aplica el DTO de HU-04; duplicarla en el repositorio la haría inconsistente si cambia. |
 | `findByIds` omite los inexistentes y no repite ids | Lanzar error desde el repositorio ante un id inexistente | El puerto solo resuelve datos; decidir que un id inexistente es un `404` es responsabilidad del caso de uso (HU-04), que compara lo pedido con lo resuelto. |
 | Mocks del dominio en `domain/discounts/mocks/` y del puerto en `application/use-cases/mocks/` con los datos de la semilla | Datos inventados por prueba | Los montos de las pruebas (`Laptop Pro 14` a 1299.99, `WELCOME2026`, `DEMO30`) coinciden con los de la demo, así la sustentación puede reproducir cada `it` en vivo. |
+
+## 12. Decisiones de implementación de cotización, checkout y órdenes (HU-04)
+
+Decisiones tomadas al construir los DTOs, el filtro global, los casos de uso y el repositorio de órdenes. Todas fueron
+propuestas por la IA en el plan de la historia; el desarrollador las aprobó y ajustó dos (cuerpo excesivo y orden del
+listado) antes de codificar.
+
+| Decisión | Alternativa descartada | Razón |
+|---|---|---|
+| `ValidationPipe` y `ApiExceptionFilter` registrados como providers `APP_PIPE` y `APP_FILTER` en `AppModule` | `app.useGlobalPipes()` / `app.useGlobalFilters()` en `main.ts` | Las pruebas e2e construyen la aplicación desde `AppModule` sin pasar por `main.ts`; con la configuración en el módulo, desarrollo, e2e y demo se comportan igual. El límite de cuerpo sí queda en `main.ts` (es una opción del parser de Express, no un provider) a través de `applyBodySizeLimit`, que el e2e reutiliza. |
+| Cuerpo mayor a 100 KB → `400` con `CEC_CHECKOUT_1002` | Conservar el `413 Payload Too Large` que emite body-parser | Decisión del desarrollador para respetar la HU: el frontend trata todo `400` como error de negocio con mensaje propio y un `413` obligaría a un caso especial. El filtro reconoce el error del parser (no es una `HttpException`) por su `status` 413 y lo remapea; ver `ia.md` §3.3.2. |
+| `couponCode` vacío o con solo espacios se transforma a `undefined` (sin cupón) | Responder `400` | Decisión del desarrollador: el input del frontend vacío equivale a "sin cupón" y la cotización responde `isCouponValid: true`; no relaja ninguna validación de seguridad. Si se quiere avisar al usuario, es una tarea secundaria del frontend. |
+| `OrderNotFoundError` como cuarto error de dominio (`CEC_ORDERS_3001` → 404) | Que `GetOrderByIdUseCase` devuelva `null` y el controlador lance `NotFoundException` | La HU listaba tres errores, pero el `404` de órdenes necesita uno; decidirlo en el controlador sería lógica fuera del caso de uso. |
+| Códigos concretos: `CHECKOUT_INVALID_PAYLOAD` (1001), `CHECKOUT_PAYLOAD_TOO_LARGE` (1002), `ORDERS_INVALID_ID` (1001), `CHECKOUT_UNEXPECTED_ERROR` (2001), `PRODUCTS_NOT_FOUND`, `DISCOUNTS_INVALID_COUPON`, `CHECKOUT_INSUFFICIENT_STOCK`, `ORDERS_NOT_FOUND` (3001) | Derivar el módulo del código a partir de la ruta en el filtro | Cada código es un miembro explícito del enum. Las dos fuentes de `400` de Nest (`ValidationPipe` y `ParseUUIDPipe`) usan fábricas de `infrastructure/http` que adjuntan `{ code, message }` a la `BadRequestException`; el filtro solo los lee. Los mensajes de `class-validator` se declaran en español en cada decorador y la fábrica traduce `whitelistValidation` a "El campo X no está permitido". |
+| Servicio de aplicación `CartResolver` (`resolveItems`, `resolveCoupon`) compartido por cotización y checkout | Duplicar consolidación y resolución en ambos casos de uso, o que checkout componga a `QuoteCartUseCase` | Evita un bloque duplicado de más de cinco líneas; la política del cupón (tolerar vs. rechazar) queda en cada caso de uso. Carpeta `application/services/` agregada al árbol de `CLAUDE.md` §4. |
+| `DiscountEngine` y `StockValidator` registrados con `useFactory` en `AppModule`, sin decoradores | Decorarlos con `@Injectable()` | Mantiene la regla §5 (dominio sin `@nestjs/*`). Los casos de uso los inyectan por clase, así se prueban con el motor y el validador mockeados como exige la HU. |
+| `InMemoryOrderRepository.findAll` devuelve el arreglo en orden inverso de inserción | Ordenar por `createdAt` descendente | Decisión del desarrollador: `createdAt` tiene precisión de segundos y dos órdenes del mismo segundo no serían ordenables; el orden de llegada del arreglo es determinista y basta para el listado. |
+| El decremento se hace ítem a ítem con `decrementStock`; un `false` se traduce a `InsufficientStockError` | Añadir un `decrementStockBatch` atómico al puerto | Tras `StockValidator` en el mismo ciclo, el `false` es inalcanzable: los `await` sobre promesas ya resueltas se encolan como microtareas y se drenan antes de atender otra petición, así que no hay intercalado entre validar y decrementar con los repositorios en memoria. La guarda existe como salvaguarda y se prueba. |
+| Log `INFO` de "orden creada" (id y total) en `CheckoutController`; `WARN`/`ERROR` con `error.message` en el filtro | Logger en los casos de uso | `CLAUDE.md` §5 limita `@nestjs/common` en `application` a `@Injectable`/`@Inject`. Ningún log incluye el payload del cliente ni el objeto de error. |
+| `@IsUUID('4')` en `CartItemDto` y `ParseUUIDPipe({ version: '4' })` en órdenes | Aceptar cualquier versión de UUID | Todos los identificadores del sistema (semilla y `randomUUID()`) son v4; la restricción es coherente con la documentación y no excluye ningún caso real. |
+| `createdAt` con `dayjs().unix()` | `Math.floor(Date.now() / 1000)` | El estándar del equipo fija `dayjs` como librería de fechas y el transporte como unix UTC en segundos; `unix()` ya devuelve segundos sin zona horaria. Es el único uso de `dayjs` en el backend. |

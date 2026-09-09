@@ -1,9 +1,13 @@
 /** Dependencias NestJS */
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 
 /** Módulos */
 import { AppModule } from './app.module';
+
+/** HTTP */
+import { applyBodySizeLimit, BODY_SIZE_LIMIT } from './infrastructure/http/body-size-limit';
 
 /** Valores por defecto de desarrollo cuando no hay variables de entorno */
 const DEFAULT_PORT = 3000;
@@ -41,7 +45,8 @@ const resolveCorsOrigin = (logger: Logger): string => {
 };
 
 /**
- * Función que arranca la aplicación NestJS con CORS restringido al origen del frontend
+ * Función que arranca la aplicación NestJS con CORS restringido al origen del frontend y cuerpo JSON limitado a
+ * 100 KB; la validación y el filtro globales se registran como providers en AppModule
  * @returns {Promise<void>}
  */
 const bootstrap = async (): Promise<void> => {
@@ -49,10 +54,13 @@ const bootstrap = async (): Promise<void> => {
   loadEnvironmentFile(logger);
   const port = Number(process.env.PORT ?? DEFAULT_PORT);
   const corsOrigin = resolveCorsOrigin(logger);
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, { bodyParser: false });
+  applyBodySizeLimit(app);
   app.enableCors({ origin: corsOrigin });
   await app.listen(port);
-  logger.log(`main > bootstrap - servicio escuchando en el puerto ${port} con CORS para ${corsOrigin}`);
+  logger.log(
+    `main > bootstrap - servicio escuchando en el puerto ${port} con CORS para ${corsOrigin} y cuerpo máximo de ${BODY_SIZE_LIMIT}`,
+  );
 };
 
 void bootstrap();
