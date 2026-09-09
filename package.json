@@ -11,7 +11,7 @@
     "pnpm": ">=10.0.0"
   },
   "scripts": {
-    "dev": "pnpm --recursive --parallel --filter \"./apps/*\" run dev",
+    "dev": "pnpm --filter @cec/shared run build && pnpm --recursive --parallel --filter \"./apps/*\" run dev",
     "dev:backend": "pnpm --filter @cec/backend run dev",
     "dev:frontend": "pnpm --filter @cec/frontend run dev",
     "build": "pnpm --recursive run build",

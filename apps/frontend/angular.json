@@ -31,7 +31,8 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": ["src/styles.scss"],
+            "allowedCommonJsDependencies": ["@cec/shared"]
           },
           "configurations": {
             "production": {
